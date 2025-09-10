@@ -416,8 +416,45 @@ setup_git() {
 change_shell() {
     if [ "$SHELL" != "$(which zsh)" ]; then
         log "Changement du shell par défaut vers zsh..."
-        chsh -s $(which zsh)
-        warn "Le shell sera changé au prochain login"
+        
+        # Install util-linux-user if chsh is missing (AL2023 issue)
+        if ! command -v chsh >/dev/null 2>&1; then
+            log "Installation de util-linux-user pour chsh..."
+            case $OS in
+                al2023|redhat|fedora)
+                    sudo dnf install -y util-linux-user
+                    ;;
+                centos)
+                    sudo yum install -y util-linux-user
+                    ;;
+                ubuntu)
+                    # chsh should be available by default
+                    ;;
+            esac
+        fi
+        
+        if command -v chsh >/dev/null 2>&1; then
+            # Try with sudo first (common on cloud instances)
+            if sudo chsh -s $(which zsh) $USER; then
+                warn "Le shell sera changé au prochain login"
+            elif chsh -s $(which zsh) 2>/dev/null; then
+                warn "Le shell sera changé au prochain login"
+            else
+                warn "Impossible de changer le shell avec chsh"
+                log "Alternative: modification directe de /etc/passwd..."
+                
+                # Fallback: direct /etc/passwd modification
+                if [ -w /etc/passwd ] || sudo -n true 2>/dev/null; then
+                    sudo sed -i "s|^$USER:.*:|$USER:x:$(id -u):$(id -g):$USER:/home/$USER:$(which zsh)|" /etc/passwd
+                    log "Shell modifié directement dans /etc/passwd"
+                    warn "Le shell sera changé au prochain login"
+                else
+                    warn "Execute manuellement: sudo usermod -s $(which zsh) $USER"
+                fi
+            fi
+        else
+            warn "chsh non disponible. Execute: sudo usermod -s $(which zsh) $USER"
+        fi
     else
         log "zsh est déjà le shell par défaut"
     fi
