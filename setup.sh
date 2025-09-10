@@ -122,7 +122,16 @@ install_packages() {
                 nodejs npm python3 python3-pip
             
             # Try to install modern tools, fallback gracefully
-            sudo dnf install -y fzf ripgrep fd-find bat || warn "Certains outils modernes non disponibles"
+            sudo dnf install -y fzf || warn "fzf non disponible"
+            sudo dnf install -y ripgrep || warn "ripgrep non disponible" 
+            sudo dnf install -y fd-find || warn "fd-find non disponible"
+            
+            # bat n'existe pas sur AL2023, on peut l'installer via cargo ou skip
+            if command -v cargo >/dev/null 2>&1; then
+                cargo install bat || true
+            else
+                warn "bat non disponible (installer rust/cargo pour l'avoir)"
+            fi
             
             # Docker installation for AL2023
             sudo dnf install -y docker
@@ -510,6 +519,14 @@ main() {
     # Setup other tools
     setup_vim
     setup_git
+    
+    # Apply P10K config if available (inline instead of function call)
+    if [ -f "./p10k.zsh" ]; then
+        log "Application de la config P10K depuis le repo..."
+        cp ./p10k.zsh $HOME/.p10k.zsh
+    elif [ ! -f "$HOME/.p10k.zsh" ]; then
+        log "Pas de config P10K - le wizard se lancera au premier démarrage zsh"
+    fi
     
     # Change shell
     change_shell
